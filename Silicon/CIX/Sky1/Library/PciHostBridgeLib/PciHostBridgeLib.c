@@ -104,11 +104,17 @@ ConstructRootBridge (
   PCI_ROOT_BRIDGE                    *Bridge,
   PCI_ROOT_BRIDGE_RESOURCE_APPETURE  *Appeture,
   UINT8                              RootPortIndex
-  )
+)
 {
   EFI_PCI_ROOT_BRIDGE_DEVICE_PATH  *DevicePath;
 
-  DEBUG ((DEBUG_ERROR, "Construct Root Bridge resource\n"));
+  DEBUG ((DEBUG_INFO, "=== ConstructRootBridge: RP%d ===\n", RootPortIndex));
+  DEBUG ((DEBUG_INFO, "  BusBase=0x%lx BusLimit=0x%lx\n", Appeture->BusBase, Appeture->BusLimit));
+  DEBUG ((DEBUG_INFO, "  IoBase=0x%lx IoSize=0x%lx\n", Appeture->IoBase, Appeture->IoSize));
+  DEBUG ((DEBUG_INFO, "  MemBase=0x%lx MemSize=0x%lx\n", Appeture->Mem, Appeture->MemSize));
+  DEBUG ((DEBUG_INFO, "  MemAbove4G=0x%lx MemAbove4GSize=0x%lx\n", Appeture->MemAbove4G, Appeture->MemAbove4GSize));
+  DEBUG ((DEBUG_INFO, "  PMem=0x%lx PMemSize=0x%lx\n", Appeture->PMem, Appeture->PMemSize));
+  DEBUG ((DEBUG_INFO, "  PMemAbove4G=0x%lx PMemAbove4GSize=0x%lx\n", Appeture->PMemAbove4G, Appeture->PMemAbove4GSize));
 
   CopyMem (Bridge, &mRootBridgeTemplate, sizeof *Bridge);
   Bridge->Segment   = Appeture->Segment;
@@ -214,16 +220,19 @@ PciHostBridgeGetRootBridges (
   }
 
   for (Loop = 0; Loop < PCIE_MAX_ROOTBRIDGE; Loop++) {
+    DEBUG ((DEBUG_INFO, "=== GetRootBridges: Checking RP%d, LinkStatus=%d ===\n", Loop, ConfigData->Pcie.PcieLinkUpStatus[Loop]));
     if (ConfigData->Pcie.PcieLinkUpStatus[Loop] == FALSE) {
+      DEBUG ((DEBUG_INFO, "  RP%d: Link is down, skipping\n", Loop));
       continue;
     }
 
     Status = ConstructRootBridge (&Bridges[*Count], &mPcieResourceAppeture[Loop], Loop);
     if (EFI_ERROR (Status)) {
-      DEBUG ((DEBUG_ERROR, "[%a:%d] - ConstructRootBridge failed!\n", __FUNCTION__, __LINE__));
+      DEBUG ((DEBUG_ERROR, "[%a:%d] - ConstructRootBridge failed for RP%d!\n", __FUNCTION__, __LINE__, Loop));
       continue;
     }
 
+    DEBUG ((DEBUG_INFO, "  RP%d: Constructed successfully, Count=%d\n", Loop, *Count + 1));
     (*Count)++;
   }
 
@@ -274,12 +283,14 @@ EFIAPI
 PciHostBridgeResourceConflict (
   EFI_HANDLE  HostBridgeHandle,
   VOID        *Configuration
-  )
+)
 {
   EFI_ACPI_ADDRESS_SPACE_DESCRIPTOR  *Descriptor;
   UINTN                              RootBridgeIndex;
 
+  DEBUG ((DEBUG_ERROR, "=========================================\n"));
   DEBUG ((DEBUG_ERROR, "PciHostBridge: Resource conflict happens!\n"));
+  DEBUG ((DEBUG_ERROR, "=========================================\n"));
 
   RootBridgeIndex = 0;
   Descriptor      = (EFI_ACPI_ADDRESS_SPACE_DESCRIPTOR *)Configuration;
@@ -293,7 +304,7 @@ PciHostBridgeResourceConflict (
       DEBUG (
         (
          DEBUG_ERROR,
-         " %s: Length/Alignment = 0x%lx / 0x%lx\n",
+         " %s: Length=0x%lx Alignment=0x%lx\n",
          mPciHostBridgeLibAcpiAddressSpaceTypeStr[Descriptor->ResType],
          Descriptor->AddrLen,
          Descriptor->AddrRangeMax
@@ -302,7 +313,7 @@ PciHostBridgeResourceConflict (
 
       if (Descriptor->ResType == ACPI_ADDRESS_SPACE_TYPE_MEM) {
         DEBUG (
-          (DEBUG_ERROR, "     Granularity/SpecificFlag = %ld / %02x%s\n",
+          (DEBUG_ERROR, "     Granularity=0x%lx SpecificFlag=%02x%s\n",
            Descriptor->AddrSpaceGranularity, Descriptor->SpecificFlag,
            ((Descriptor->SpecificFlag &
              EFI_ACPI_MEMORY_RESOURCE_SPECIFIC_FLAG_CACHEABLE_PREFETCHABLE
@@ -320,6 +331,10 @@ PciHostBridgeResourceConflict (
                                                        (EFI_ACPI_END_TAG_DESCRIPTOR *)Descriptor + 1
                                                        );
   }
+
+  DEBUG ((DEBUG_ERROR, "=========================================\n"));
+  DEBUG ((DEBUG_ERROR, "End of resource conflict info\n"));
+  DEBUG ((DEBUG_ERROR, "=========================================\n"));
 
   return;
 }
